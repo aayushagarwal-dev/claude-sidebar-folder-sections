@@ -1,0 +1,8 @@
+{
+  "name": "sidebar-folder-sections",
+  "version": "0.1.0",
+  "description": "Brings back folder grouping in the Claude Desktop Code sidebar: files each new session into a sidebar section named after its folder (git repo root), creating the section if needed.",
+  "author": { "name": "Aayush Agarwal", "url": "https://github.com/aayushagarwal-dev" },
+  "homepage": "https://github.com/aayushagarwal-dev/claude-sidebar-folder-sections",
+  "license": "MIT"
+}

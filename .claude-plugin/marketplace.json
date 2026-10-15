@@ -1,0 +1,15 @@
+{
+  "name": "claude-sidebar-folder-sections",
+  "description": "Brings back folder grouping in the Claude Desktop Code sidebar.",
+  "owner": {
+    "name": "Aayush Agarwal",
+    "url": "https://github.com/aayushagarwal-dev"
+  },
+  "plugins": [
+    {
+      "name": "sidebar-folder-sections",
+      "source": "./",
+      "description": "Files each new Claude Desktop Code session into a sidebar section named after its folder."
+    }
+  ]
+}
