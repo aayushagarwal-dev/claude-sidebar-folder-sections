@@ -30,6 +30,16 @@ In a terminal Claude Code session (the plugin command isn't available inside the
 
 Answer `y` to add the marketplace, then pick the **user** scope. Plugins installed at the user scope load in the desktop app's local sessions too. New sessions you start afterwards are filed automatically.
 
+**If nothing gets filed:** this plugin is a *hooks module*, a newer Claude Code plugin type that is still rolling out (Claude Code 2.1.295 at the time of writing). If it isn't on for your account yet, Claude Code skips the plugin quietly. Turn it on by adding this to the `env` block of `~/.claude/settings.json`, then start a new session:
+
+```json
+"env": {
+  "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"
+}
+```
+
+To check, run `claude --debug -p ok` in a terminal and look for `hooks module sidebar-folder-sections@... loaded` in the output.
+
 Or from your shell:
 
 ```bash
