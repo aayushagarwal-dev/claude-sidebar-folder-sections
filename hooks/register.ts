@@ -13,20 +13,43 @@ type Result = { isError: boolean; content: { type: string; text?: string }[] }
 
 const textOf = (r: Result) => r.content.map(b => b.text ?? '').join('')
 
-/** `/Users/<name>` or `/home/<name>` at the front of a path, else null. */
-export const homeOf = (path: string): string | null => path.match(/^\/(?:Users|home)\/[^/]+/)?.[0] ?? null
+// Paths are worked on with `/` only; a Windows path (`C:\Users\<name>\...`) is
+// turned into `C:/Users/<name>/...` first and handed back with `\` where it
+// leaves this file (`exists`, `homeOf`). Windows paths match case-insensitively.
+
+/** The separator `path` is written with: `\` for a Windows path (a backslash or a drive letter), else `/`. */
+const sepOf = (path: string) => (path.includes('\\') || /^[A-Za-z]:/.test(path) ? '\\' : '/')
+const toSlashes = (path: string) => path.replace(/\\/g, '/')
+const toSep = (path: string, sep: string) => (sep === '/' ? path : path.replace(/\//g, sep))
+
+/** `C:/Users/<name>` (any case), `/Users/<name>` or `/home/<name>` at the front of a slashed path. */
+const homeIn = (path: string): string | null =>
+  path.match(/^[A-Za-z]:\/Users\/[^/]+/i)?.[0] ?? path.match(/^\/(?:Users|home)\/[^/]+/)?.[0] ?? null
+
+/** The home folder at the front of a path, in the path's own separator, else null. */
+export const homeOf = (path: string): string | null => {
+  const home = homeIn(toSlashes(path))
+  return home && toSep(home, sepOf(path))
+}
+
+const isScratch = (path: string) =>
+  /\/scratch-workspaces\//i.test(path) ||
+  /^\/(private\/)?tmp(\/|$)/.test(path) ||
+  /^[A-Za-z]:\/(?:Users\/[^/]+\/AppData\/Local\/Temp|Windows\/Temp)(\/|$)/i.test(path)
 
 /** The section a session in `cwd` belongs to. */
 export const sectionName = async (cwd: string, exists: (p: string) => Promise<boolean>): Promise<string> => {
-  if (!cwd || cwd.includes('/scratch-workspaces/') || /^\/(private\/)?tmp(\/|$)/.test(cwd)) return 'Scratch'
+  const sep = sepOf(cwd)
+  const path = toSlashes(cwd)
+  if (!cwd || isScratch(path)) return 'Scratch'
 
-  let dir = cwd.replace(/\/\.claude\/worktrees\/[^/]+.*$/, '').replace(/\/+$/, '')
-  const home = homeOf(dir)
+  let dir = path.replace(/\/\.claude\/worktrees\/[^/]+.*$/i, '').replace(/\/+$/, '')
+  const home = homeIn(dir)
   if (dir === home) return 'Home'
 
   // Walk up to the git repo root, never past the home folder.
   for (let q = dir; q.length > (home ?? '').length && q.includes('/'); q = q.slice(0, q.lastIndexOf('/'))) {
-    if (await exists(`${q}/.git`)) {
+    if (await exists(toSep(`${q}/.git`, sep))) {
       dir = q
       break
     }
@@ -37,8 +60,9 @@ export const sectionName = async (cwd: string, exists: (p: string) => Promise<bo
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    const home = homeOf(e.cwd)
-    const logFile = home ? `${home}/.claude/sidebar-folder-sections.log` : null
+    // %USERPROFILE% on Windows, $HOME elsewhere, else the home folder in the session's path.
+    const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME')) || homeOf(e.cwd)
+    const logFile = home ? toSep(`${toSlashes(home)}/.claude/sidebar-folder-sections.log`, sepOf(home)) : null
 
     const log = async (line: string) => {
       if (!logFile) return
@@ -50,11 +74,12 @@ export const register: Register = on => {
 
     // Deferred so the desktop's sidebar server is ready and the start isn't held up.
     $.clock.after(DELAY_MS, async () => {
+      let name = ''
       try {
         const id = await $.session.id()
         if (await $.store.get(`filed:${id}`)) return
 
-        const name = await sectionName(e.cwd, p => $.fs.exists(p))
+        name = await sectionName(e.cwd, p => $.fs.exists(p))
         const listed = await $.mcp.call(SERVER, 'list_sections', {})
         if (listed.isError) return void (await log(`list_sections: ${textOf(listed)}`))
 
@@ -72,7 +97,7 @@ export const register: Register = on => {
         await log(`${nested ? 'nested, follows its parent' : moved.isError ? 'move failed' : 'filed'} -> ${name}`)
       } catch (err) {
         // Not a Claude Desktop session (terminal, -p): there is no sidebar to file into.
-        await log(`skipped: ${String(err)}`)
+        await log(`skipped${name ? ` (-> ${name})` : ''}: ${String(err)}`)
       }
     })
 

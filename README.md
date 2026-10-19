@@ -12,7 +12,7 @@ What the new layout does have is **custom sections**: named sidebar sections you
 
 When a Code session starts in Claude Desktop, the plugin waits a few seconds and then:
 
-1. works out the session's folder: the **git repo root** if it's inside a repo (so `my-app/src/api` and `my-app/.claude/worktrees/fix-123` both go under `my-app`), otherwise the folder itself. Your home folder becomes **Home**, and scratch or `/tmp` sessions become **Scratch**;
+1. works out the session's folder: the **git repo root** if it's inside a repo (so `my-app/src/api` and `my-app/.claude/worktrees/fix-123` both go under `my-app`), otherwise the folder itself. Your home folder becomes **Home**, and scratch, `/tmp` and Windows temp (`AppData\Local\Temp`) sessions become **Scratch**;
 2. finds the sidebar section with that name, or creates it;
 3. moves the session into it.
 
@@ -51,7 +51,7 @@ claude plugin install sidebar-folder-sections@claude-sidebar-folder-sections
 
 The plugin only files sessions as they start. To sort your existing ones, open any Code session in Claude Desktop and ask:
 
-> List all my Code sessions, group them by folder (use the git repo root, put worktrees under their repo, home folder → "Home", scratch and /tmp → "Scratch"), create one sidebar section per folder with the ccd_sidebar tools, and move each session into its section.
+> List all my Code sessions, group them by folder (use the git repo root, put worktrees under their repo, home folder → "Home", scratch, /tmp and Windows temp folders → "Scratch"), create one sidebar section per folder with the ccd_sidebar tools, and move each session into its section.
 
 Claude has the sidebar tools it needs in desktop sessions. `move_sessions` takes up to 100 sessions per call.
 
@@ -61,11 +61,22 @@ Claude has the sidebar tools it needs in desktop sessions. `move_sessions` takes
 - **Routine runs** show under their routine and can't be grouped.
 - Sections are matched **by name**, so two different folders with the same name share a section.
 - This relies on the desktop app's sidebar tools (`ccd_sidebar`), which aren't a documented public API. A future app update could change or break them.
-- Tested on macOS with Claude Desktop 2.37337.1 and Claude Code 2.1.295. Linux paths are handled; Windows is untested.
+- Tested on macOS with Claude Desktop 2.37337.1 and Claude Code 2.1.295, and on Windows 11 with Claude Desktop 2.42304.0 and Claude Code 2.1.299. Linux paths are handled. On Windows, paths with backslashes and drive letters (`C:\Users\<name>\...`) work and are matched case-insensitively.
 
 ## Troubleshooting
 
-Each run appends a line to `~/.claude/sidebar-folder-sections.log` saying what it did (`filed -> my-app`, `nested, follows its parent`, or an error). If a session doesn't land where you expect, look there first.
+Each run appends a line to `~/.claude/sidebar-folder-sections.log` (`%USERPROFILE%\.claude\sidebar-folder-sections.log` on Windows) saying what it did (`filed -> my-app`, `nested, follows its parent`, or an error). If a session doesn't land where you expect, look there first.
+
+**If the log says `move_sessions` was refused by the auto mode classifier,** the session runs in auto mode, which doesn't let the plugin call the sidebar tools on its own. Allow them in the `permissions` block of `~/.claude/settings.json`, then start a new session:
+
+```json
+"permissions": {
+  "allow": [
+    "mcp__ccd_sidebar__create_section",
+    "mcp__ccd_sidebar__move_sessions"
+  ]
+}
+```
 
 ## Uninstall
 
